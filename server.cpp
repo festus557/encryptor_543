@@ -111,25 +111,6 @@ int main()
         cout.write(request.data(),request.size());
         cout<<endl;
 
-        /* ---- BUILD RESPONSE ---- */
-        string body =
-            "<html>"
-            "<body>"
-            "<h1>HTTPS Server Working</h1>"
-            "<p>Hello from OpenSSL server</p>"
-            "</body>"
-            "</html>";
-
-        string response =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/html\r\n"
-            "Content-Length: " + to_string(body.size()) + "\r\n"
-            "Connection: close\r\n"
-            "\r\n" +
-            body;
-
-        SSL_write(ssl, response.c_str(), response.size());
-
         /* ---- CLEAN SHUTDOWN ---- */
         SSL_shutdown(ssl);
         SSL_free(ssl);
