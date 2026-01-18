@@ -1,15 +1,16 @@
-	#include <iostream>
+#include <iostream>
 #include <sodium.h>
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <cstdlib>
+#include <vector>
 
 using namespace std;
 
 typedef unsigned char uchar;
 
-bool is_decrypted(const string & infile,uchar key){
+bool decrypt_file(const string & infile,const uchar key[crypto_secretbox_KEYBYTES]){
 
         vector<uchar> ciphertext;
         uchar nonce[crypto_secretbox_NONCEBYTES];
@@ -28,12 +29,21 @@ bool is_decrypted(const string & infile,uchar key){
         size_t bytes;
         char buf[128];
 
-        read(readfd,nonce,sizeof(nonce));
+        if(read(readfd,nonce,sizeof(nonce)) != sizeof(nonce)){
+             close(readfd);
+             return false;
+        }
 
         while((bytes = read(readfd,buf,sizeof(buf))) > 0){
                 ciphertext.insert(ciphertext.end(),buf,buf + bytes);
         }
 
+        if(ciphertext.size() < crypto_secretbox_MACBYTES){
+             close(readfd);
+             return false;
+        }
+
+        close(readfd);
         size_t CIPHERTEXT_LEN = ciphertext.size();
         size_t PLAINTEXT_LEN = CIPHERTEXT_LEN - crypto_secretbox_MACBYTES;
 
@@ -44,14 +54,14 @@ bool is_decrypted(const string & infile,uchar key){
                 ciphertext.data(),
                 ciphertext.size(),
                 nonce,
-                &key
+                key
         );
 
         if(done < 0){
            return false;
         }
 
-        int writefd = open(outfile.c_str(),O_WRONLY);
+        int writefd = open(outfile.c_str(),O_WRONLY | O_CREAT | O_TRUNC , 0600);
 
         if(writefd < 0){
            return false;
@@ -59,9 +69,8 @@ bool is_decrypted(const string & infile,uchar key){
 
         write(writefd,plaintext.data(),plaintext.size());
 
-        close(readfd);
         close(writefd);
 
-        return false;
+        return true;
 
 }
