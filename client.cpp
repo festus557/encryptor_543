@@ -11,13 +11,11 @@
 
 using namespace std;
 
-int client(){
+int client( const char * msg){
 
        SSL_CTX * ctx;
        SSL * ssl;
        int serverfd;
-       char buf[4096];
-       char buffer[4096];
 
        string serverip = "127.0.0.1";
        unsigned short port = 50000;
@@ -37,8 +35,25 @@ int client(){
        serveraddr.sin_addr.s_addr = inet_addr(serverip.c_str());
        serveraddr.sin_port = htons(port);
 
+       int retries = 0;
+       time_t sec = 10;
+       int max_retries = 20;
+       int high = 0;
+
        while(connect(serverfd,(struct sockaddr*)&serveraddr,sizeof(serveraddr)) != 0){
-                sleep(10);
+                if(retries < max_retries){
+                    sleep(sec);
+                    sec += 10;
+                    retries++;
+                    continue;
+                }
+                sleep(900);
+                high++;
+
+                if(high == max_retries)
+                    break;
+
+                 continue;
        }
 
        ctx = SSL_CTX_new(TLS_client_method());
@@ -47,62 +62,25 @@ int client(){
        SSL_set_fd(ssl,serverfd);
 
        if(SSL_connect(ssl) <= 0){
-                return -1;
+                goto cleanup;
        }
        else {
 
-                int fd = SSL_get_fd(ssl);
-                int flag = fcntl(fd,F_GETFL,0);
-                fcntl(fd,F_SETFL, flag | O_NONBLOCK);
-
-                fd_set reads , writes;
-
-                while(1){
-
-                       memset(buffer,0,sizeof(buffer));
-                       memset(buf,0,sizeof(buf));
-
-                       FD_ZERO(&reads);
-                       FD_ZERO(&writes);
-
-                       FD_SET(fd,&reads);
-                       FD_SET(fd,&writes);
-
-                       if(select(fd + 1,&reads,&writes,NULL,NULL) < 0){
-                               return -1;
-                       }
-                       else {
-                              if(FD_ISSET(fd,&reads)){
-                                  int ret = SSL_read(ssl,buffer,sizeof(buffer));
-                                  if(ret > 0){
-                                              buffer[ret] = '\0';
-                                              //handle response
-                                  }
-                                  else {
-                                         int err = SSL_get_error(ssl,ret);
-                                         if(err == SSL_ERROR_ZERO_RETURN)
-                                                  break;
-
-                                  }
-                              }
-
-                              if(FD_ISSET(fd,&writes)){
-                                  int ret = SSL_write(ssl,buf,sizeof(buf));
-                                  if(ret < 0){
-                                        int err = SSL_get_error(ssl,ret);
-                                        if(err == SSL_ERROR_ZERO_RETURN)
-                                              break;
-                                  }
-                                  //handle requests
-                              }
-                       }
-
-                }
+                if(SSL_write(ssl,msg,strlen(msg)) <= 0){
+                      ERR_print_errors_fp(stderr);
+                      goto cleanup;
+                   }
        }
-
+      cleanup:
         SSL_shutdown(ssl);
+        SSL_CTX_free(ctx);
         SSL_free(ssl);
         close(serverfd);
         return 0;
 
+}
+
+
+int main(){
+  return  client("Secrete message");
 }
