@@ -100,6 +100,9 @@ int client(){
                 }
        }
 
-return 0;
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        close(serverfd);
+        return 0;
 
 }
